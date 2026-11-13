@@ -1,0 +1,62 @@
+plugins { id 'com.android.application' }
+
+def signingEnvironment = ['AIRCRAFT_KEYSTORE_PATH', 'AIRCRAFT_STORE_PASSWORD',
+                          'AIRCRAFT_KEY_ALIAS', 'AIRCRAFT_KEY_PASSWORD']
+def hasReleaseKey = signingEnvironment.every { System.getenv(it) }
+
+android {
+    namespace 'edu.hitsz.aircraftwar'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'edu.hitsz.aircraftwar'
+        minSdk 26
+        targetSdk 36
+        versionCode 3
+        versionName '2.1'
+    }
+    signingConfigs {
+        if (hasReleaseKey) { release {
+            storeFile rootProject.file(System.getenv('AIRCRAFT_KEYSTORE_PATH'))
+            storePassword System.getenv('AIRCRAFT_STORE_PASSWORD')
+            keyAlias System.getenv('AIRCRAFT_KEY_ALIAS')
+            keyPassword System.getenv('AIRCRAFT_KEY_PASSWORD')
+        } }
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            if (hasReleaseKey) signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    androidResources { noCompress 'wav', 'm4a' }
+}
+dependencies { implementation project(':shared') }
+
+// These adapters are platform-free, so their real clocks and coordinates run on the JVM.
+def adapterClasses = layout.buildDirectory.dir('verification/adapters')
+tasks.register('compileAdapterChecks', JavaCompile) {
+    dependsOn ':shared:classes'
+    source files(
+        'src/main/java/edu/hitsz/sky/android/LocalSession.java',
+        'src/main/java/edu/hitsz/sky/android/SnapshotMotion.java',
+        'src/test/java/edu/hitsz/sky/android/LocalSessionTest.java',
+        'src/test/java/edu/hitsz/sky/android/SnapshotMotionTest.java')
+    classpath = files(project(':shared').layout.buildDirectory.dir('classes/java/main'))
+    destinationDirectory = adapterClasses
+    options.release = 11
+    options.encoding = 'UTF-8'
+}
+['verifyLocalSession': 'LocalSessionTest', 'verifySnapshotMotion': 'SnapshotMotionTest'].each { taskName, entry ->
+    tasks.register(taskName, JavaExec) {
+        dependsOn 'compileAdapterChecks'
+        classpath = files(adapterClasses, project(':shared').layout.buildDirectory.dir('classes/java/main'))
+        mainClass = 'edu.hitsz.sky.android.' + entry
+    }
+}
+tasks.named('check') { dependsOn 'verifyLocalSession', 'verifySnapshotMotion' }

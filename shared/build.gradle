@@ -1,0 +1,47 @@
+plugins { id 'java-library' }
+java { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.register('verifyCore', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'edu.hitsz.sky.core.BattleEngineTest'
+}
+tasks.register('verifyCodec', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'edu.hitsz.sky.net.WireCodecTest'
+}
+tasks.register('verifyRooms', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'edu.hitsz.sky.net.RoomServerTest'
+}
+tasks.register('verifyNetworkContracts', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'edu.hitsz.sky.net.NetworkContractTest'
+}
+[
+    'verifyRoomLifecycle': 'RoomLifecycleTest',
+    'verifyProtocolExtensions': 'RoomProtocolExtensionTest',
+    'verifyRoomContinuation': 'RoomContinuationSocketTest',
+    'verifyRoomWaitingPause': 'RoomWaitingPauseTest',
+    'verifyRoomDeadlines': 'RoomSecurityDeadlineTest',
+    'verifyRoomTerminalTransitions': 'RoomTerminalSocketTest'
+].each { taskName, entry ->
+    tasks.register(taskName, JavaExec) {
+        dependsOn testClasses
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = 'edu.hitsz.sky.net.' + entry
+    }
+}
+tasks.named('check') {
+    dependsOn 'verifyMinuteCampaign'
+    dependsOn verifyCore, verifyCodec, verifyRooms, verifyNetworkContracts,
+        'verifyRoomLifecycle', 'verifyProtocolExtensions', 'verifyRoomContinuation', 'verifyRoomWaitingPause', 'verifyRoomDeadlines'
+}
+tasks.register('verifyMinuteCampaign', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'edu.hitsz.sky.core.MinuteCampaignTest'
+}
