@@ -14,6 +14,7 @@ final class FlightDirector {
 
     FlightDirector(FlightSimulation world) {
         this.world = world; state = world.state;
+        world.battle.enemies.bindAttackBehavior(this::updateAttacks);
         world.battle.events.subscribe(BossDiedEvent.class, event -> bossDefeated());
         world.battle.events.subscribe(BattleEndedEvent.class, event -> warnings.clear());
         nextBoss = state.mode == Mode.ENDLESS ? state.difficulty == Difficulty.EASY ? Float.POSITIVE_INFINITY : 65f : world.stage.duration - 15f;
@@ -22,7 +23,8 @@ final class FlightDirector {
     boolean bossPresent() { return bossPresent; }
     float wind() { return (float) Math.sin(state.elapsed * .19f) * 38; }
 
-    void step(float seconds) {
+    void step(GameObjectUpdateContext context) {
+        float seconds = context.seconds;
         if (!world.battle.enemies.isAcceptingSpawns()) return;
         updateWarnings(seconds);
         if (!bossPresent && state.elapsed >= nextBoss) spawnBoss();
@@ -34,17 +36,7 @@ final class FlightDirector {
                 if (state.enemies.size() < limit) spawnEnemy(pickKind(), 35 + world.random.nextFloat() * 410, -28);
             }
         }
-        int count = state.enemies.size();
-        for (int i = count - 1; i >= 0; i--) {
-            if (i >= state.enemies.size()) continue;
-            GameState.Body enemy = state.enemies.get(i);
-            float factor = state.freezeSeconds > 0 && enemy.kind != 4 ? enemy.kind == 3 ? .35f : 0 : 1;
-            float step = seconds * factor;
-            enemy.age += step;
-            if (enemy.kind == 4) updateBoss(enemy, step);
-            else updateEnemy(enemy, step);
-            if (enemy.y > 850 || enemy.x < -95 || enemy.x > 575) world.battle.enemies.remove(enemy);
-        }
+        world.battle.enemies.update(context);
         if (state.stage == 2 && WorldMath.crossed(state.elapsed, seconds, 14)) world.notice(wind() < 0 ? "侧风向左，稳住机翼。" : "侧风向右，稳住机翼。");
         if (state.stage == 3 && !bossPresent && WorldMath.crossed(state.elapsed, seconds, 18)) {
             warn(65 + world.random.nextFloat() * 350, "hostile.23");
@@ -89,11 +81,12 @@ final class FlightDirector {
         }
     }
 
-    private void updateEnemy(GameState.Body enemy, float seconds) {
-        enemy.y += enemy.vy * seconds;
-        if (enemy.kind == 2 || enemy.kind == 3) enemy.x += (float) Math.sin(enemy.age * 2.2f + enemy.id) * enemy.vx * seconds;
-        else if (enemy.kind == 7) enemy.x += (float) Math.cos(enemy.age * 1.3f) * enemy.vx * seconds;
-        enemy.x = WorldMath.clamp(enemy.x, 24, 456);
+    private void updateAttacks(Enemy enemy, float seconds) {
+        if (enemy.kind == 4) updateBossAttacks(enemy, seconds);
+        else updateEnemyAttacks(enemy, seconds);
+    }
+
+    private void updateEnemyAttacks(GameState.Body enemy, float seconds) {
         float pace = state.difficulty.paceScale;
         switch (enemy.kind) {
             case 1:
@@ -146,9 +139,7 @@ final class FlightDirector {
         }
     }
 
-    private void updateBoss(GameState.Body boss, float seconds) {
-        boss.y = WorldMath.approach(boss.y, 115, seconds * 70);
-        boss.x = 240 + (float) Math.sin(boss.age * (.4f + state.stage * .025f)) * (88 + state.stage * 8);
+    private void updateBossAttacks(GameState.Body boss, float seconds) {
         if (boss.y < 70) return;
         boolean second = (boss.flags & 2) != 0;
         float pace = state.difficulty.paceScale * (second ? 1.42f : 1);

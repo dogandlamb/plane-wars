@@ -26,8 +26,10 @@ public abstract class AbstractEntityManager<T extends GameObject> implements Aut
 
     protected final boolean register(T entity) {
         if (!acceptingSpawns) return false;
-        if (entity.entityId > 0 && byId.putIfAbsent(entity.entityId, entity) != null)
+        if (entity.entityId > 0 && byId.containsKey(entity.entityId))
             throw new IllegalArgumentException("Duplicate entity ID: " + entity.entityId);
+        entity.bindRecycler(() -> remove(entity));
+        if (entity.entityId > 0) byId.put(entity.entityId, entity);
         entities.add(entity);
         return true;
     }
@@ -37,15 +39,29 @@ public abstract class AbstractEntityManager<T extends GameObject> implements Aut
     public final boolean remove(T entity) {
         if (!entities.remove(entity)) return false;
         byId.remove(entity.entityId, entity);
-        entity.active = false;
+        entity.deactivate();
         release(entity);
         return true;
     }
 
     public final void clearAll() {
-        for (T entity : new ArrayList<>(entities)) { entity.active = false; release(entity); }
+        for (T entity : new ArrayList<>(entities)) { entity.deactivate(); release(entity); }
         entities.clear();
         byId.clear();
+    }
+
+    public final void update(GameObjectUpdateContext context) {
+        Objects.requireNonNull(context, "context");
+        if (!acceptingSpawns) return;
+        // Existing objects update once. New objects appended during callbacks wait for a later batch.
+        for (int i = entities.size() - 1; i >= 0; i--)
+            if (i < entities.size()) entities.get(i).update(context);
+    }
+
+    final void updateObject(int id, GameObjectUpdateContext context) {
+        if (!acceptingSpawns) return;
+        T object = byId.get(id);
+        if (object != null) object.update(context);
     }
 
     @Override public final void collectColliders(List<CollisionBody> destination) {

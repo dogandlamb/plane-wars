@@ -28,7 +28,7 @@ public final class BattleConfig {
             for (String tag : new String[]{"hero.basic", "hero.spread", "hero.ring", "enemy.body", "boss.body"}) config.damage(tag);
             for (int damage : new int[]{9, 10, 11, 12, 13, 20, 22, 23, 24, 25, 26}) config.damage("hostile." + damage);
             for (String key : new String[]{"hero.hurtRadius", "hero.bodyRadius", "hero.pickupRadius",
-                    "hero.hitInvulnerability", "boss.phaseProtection", "shield.sideSpeed",
+                    "hero.hitInvulnerability", "boss.phaseProtection", "shield.sideSpeed", "bullet.lifetime", "bullet.windScale",
                     "pickup.repair.health", "pickup.weapon.duration", "pickup.bomb.maximum", "pickup.freeze.duration"}) config.value(key);
             return config;
         } catch (IOException | NumberFormatException error) {

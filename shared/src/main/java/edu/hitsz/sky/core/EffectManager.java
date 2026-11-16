@@ -18,13 +18,4 @@ public final class EffectManager extends AbstractEntityManager<GameState.Body> {
         register(effect);
     }
 
-    void update(float seconds) {
-        for (int i = entities.size() - 1; i >= 0; i--) {
-            GameState.Body effect = entities.get(i);
-            effect.age += seconds;
-            float lifetime = effect.kind == 1 ? .22f : effect.kind == 5 ? .32f : .65f;
-            if (effect.kind == 4) lifetime = effect.owner < 0 ? 1.15f : .48f;
-            if (effect.age >= lifetime) remove(effect);
-        }
-    }
 }

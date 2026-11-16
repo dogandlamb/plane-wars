@@ -3,7 +3,7 @@ package edu.hitsz.sky.core;
 import java.util.List;
 import java.util.function.IntSupplier;
 
-/** Bullet cleanup for one battlefield, independent of its outcome rules. */
+/** Owns bullet creation, update dispatch and recycling; bullets own their movement rules. */
 public final class BulletManager extends AbstractEntityManager<GameState.Body> {
     public static final int MAX_BULLETS = 512;
     private final IntSupplier nextId;
@@ -32,7 +32,7 @@ public final class BulletManager extends AbstractEntityManager<GameState.Body> {
 
     GameState.Body spawn(int owner, int kind, float x, float y, float vx, float vy, String tag, float radius) {
         if (!isAcceptingSpawns() || count() >= MAX_BULLETS) return null;
-        Bullet shot = new Bullet(this);
+        Bullet shot = new Bullet(config);
         shot.id = nextId.getAsInt(); shot.owner = owner; shot.kind = kind;
         shot.entityId = shot.id; shot.configurationTag = tag;
         shot.x = x; shot.y = y; shot.vx = vx; shot.vy = vy; shot.radius = radius;
@@ -41,4 +41,5 @@ public final class BulletManager extends AbstractEntityManager<GameState.Body> {
         register(shot);
         return shot;
     }
+
 }

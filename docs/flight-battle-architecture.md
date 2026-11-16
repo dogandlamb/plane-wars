@@ -113,6 +113,39 @@ classDiagram
 
 普通伤害、英雄三个碰撞半径、护盾速度阈值、受击保护时间、Boss 阶段保护和补给参数位于 `shared/src/main/resources/combat.properties`。框架初始化时加载，实体按具体标签读取；子弹伤害不再从 `hp` 读取，旧帧中的 `hp` 仅保留兼容投影。现有技能的数值和范围检测继续沿用原实现；它们移除子弹时也经过管理器，以同步生命周期和 ID 索引。
 
+## 游戏对象更新与生命周期
+
+```mermaid
+flowchart TD
+    Framework[框架推进模拟步] --> Context[GameObjectUpdateContext 时长 冻结 风速]
+    Context --> Managers[对象管理器共用更新调度]
+    Managers --> Base[GameObject.update 公共更新流程]
+    Base --> Entities[实体 英雄 敌人 Boss 子弹 补给]
+    Base --> Visuals[非实体 特效]
+    Entities -->|继承或重写| Rules[移动 时间倍率 风影响 寿命 边界规则]
+    Visuals -->|继承或重写| Rules
+    Rules -->|失效时经父类通知| Managers
+```
+
+`GameObject.update(GameObjectUpdateContext)` 是实体和非实体共用的更新模板。父类负责检查活动状态、推进年龄、执行移动及移动后回调、检查寿命和越界，并请求所属管理器回收。`Entity` 不再单独声明更新入口，`NonEntity` 也继承相同流程。只读上下文提供本步时长、冻结状态和风速，不持有完整战场或对象集合。
+
+子类通过 `move()`、`timeScale()`、`ageSeconds()`、`windScale()`、`lifetime()`、`isLifetimeExpired()` 和 `isOutOfBounds()` 重写各自规则。默认采用线性移动、不受风和冻结影响、无固定寿命。`AbstractEntityManager.update()` 共用逆序调度，英雄为保持输入与技能顺序而通过同一父类的 `updateObject()` 逐个调度。
+
+各类对象保留原有规则：
+
+- 非冻结时按自身速度位移；第二关两方子弹都受到横向风影响，比例为 `bullet.windScale=0.7`。
+- 冻结仅停止敌方子弹的位移与风漂移，不停止年龄增长；英雄子弹继续移动，原始速度不被覆盖。
+- 年龄严格超过 `bullet.lifetime=14` 秒时回收，恰好 14 秒仍存活。
+- 越过 `x < -40`、`x > 520`、`y < -70` 或 `y > 860` 时回收，边界上的位置仍有效；已回收子弹不再更新或参与后续碰撞。
+- 英雄自身保存移动目标，处理风、边界限制、冲刺位移和速度更新；忽略冻结，倒地保留对象以便救援。
+- 普通敌人自身处理飞行路线，冻结时移动和行动时钟停止；王牌降为 0.35 倍，Boss 免疫冻结并重写自身入场和横向路线。敌人不受风影响，越界移除不计击杀分。
+- 补给继承线性下落，忽略风和冻结；下落越过 y=840 时回收，不触发领取或计分。
+- 特效继承位移并忽略战斗风和冻结；自身按类型与归属提供持续时间，年龄达到持续时间即回收，保持与子弹不同的到期边界。
+
+管理器注册对象时绑定回收入口；移除或清场同步清除 ID 索引、活动状态和回收回调。英雄移动从 `FlightSimulation` 移入 `Hero`，敌人和 Boss 移动从 `FlightDirector` 移入对象，补给和特效的运动及失效规则也已迁入对象。非实体可利用同一套更新流程实现视觉运动，仍不参与碰撞；背景沿用绘制层，本次不新增背景对象或管理器。
+
+刷怪与攻击规则仍在调度器中，由窄的攻击回调在敌人移动后执行，随后才检查越界回收，以保留原有攻击时机和新生对象更新时机。技能冷却、临时武器倒计时和合作救援仍沿用原模块；战斗时钟和每类对象的更新顺序保持不变。
+
 ## 碰撞调试
 
 `BattleEngine.configureCollisionDebug(enabled, interval, sampleLimit)` 控制采样，默认关闭。通过 `onCollisionDebug()` 订阅的 `CollisionDebugFrameEvent` 包含模拟步、候选数、接触数、检测耗时和限量的世界坐标判定区、接触配对；截断只影响调试样本。详细坐标只进入诊断事件，不进入正式碰撞 Map。诊断监听者异常不打断战斗结算。
@@ -220,6 +253,8 @@ subscription.close();
 
 ## 验证入口
 
-`shared:check` 已接入 `BattleLifecycleTest` 和 `CollisionTest`。生命周期检查覆盖普通死亡与拾取仅结算一次、Boss 单次事件、最后击杀分进入结果、胜败清场、结束后拒绝生成、无尽继续、个人分数脱离英雄存活周期、最终快照兼容和订阅隔离。新增碰撞检查覆盖圆形相切和三个英雄半径、配对过滤、有序双向 Map、索引刷新与唯一 ID、来源先回收、归属计分、护盾速度判定、免伤、单次消耗、补给下一步参与、补给效果、Boss 阶段保护和调试隔离。
+`GameObjectLifecycleTest` 覆盖非实体继承移动与风规则、不同特效的精确到期、补给越界不计分、敌人冻结差异、攻击先于越界回收、新生对象下一批更新，以及英雄自身移动和冲刺。`BulletMotionTest` 保留子弹冻结时寿命继续增长、双方风漂移及寿命与边界回收检查。
 
-纯 JVM 验证可运行 `:shared:verifyCollisions :shared:verifyCore :shared:verifyMinuteCampaign :shared:verifyBattleLifecycle`。若手工通过 `java -cp` 运行，需同时包含编译类与 `shared/build/resources/main`，以加载战斗配置。Android 的原生构建仍需要已有构建说明中的 SDK 环境。
+`shared:check` 已接入 `BattleLifecycleTest`、`CollisionTest`、`BulletMotionTest` 和 `GameObjectLifecycleTest`。生命周期检查覆盖普通死亡与拾取仅结算一次、Boss 单次事件、最后击杀分进入结果、胜败清场、结束后拒绝生成、无尽继续、个人分数脱离英雄存活周期、最终快照兼容和订阅隔离。碰撞检查覆盖圆形相切和三个英雄半径、配对过滤、有序双向 Map、索引刷新与唯一 ID、来源先回收、归属计分、护盾速度判定、免伤、单次消耗、补给下一步参与、补给效果、Boss 阶段保护和调试隔离。子弹运动检查覆盖实体重写入口、双方风漂移、敌弹冻结与恢复、冻结时寿命仍增长、严格到期和边界、相邻对象回收不漏更新、ID 索引移除，以及框架实际传递环境和已关闭管理器停止更新。
+
+纯 JVM 验证可运行 `:shared:verifyGameObjects :shared:verifyBulletMotion :shared:verifyCollisions :shared:verifyCore :shared:verifyMinuteCampaign :shared:verifyBattleLifecycle`。若手工通过 `java -cp` 运行，需同时包含编译类与 `shared/build/resources/main`，以加载战斗配置。Android 的原生构建仍需要已有构建说明中的 SDK 环境。

@@ -28,6 +28,7 @@ public final class HeroManager extends AbstractEntityManager<GameState.Pilot> {
         ((Hero) hero).bindCombat(combat);
         hero.id = id; hero.name = name; hero.x = x; hero.y = y;
         hero.hp = 100; hero.maxHp = 100; hero.bombs = developer ? 99 : 2; hero.charge = 1;
+        ((Hero) hero).resetMovementTarget();
         register(hero);
         return hero;
     }

@@ -13,6 +13,7 @@ public final class EnemyManager extends AbstractEntityManager<GameState.Body> {
     private final EffectManager effects;
     private final EventManager.Subscription bossSubscription;
     private CombatContext combat;
+    private Enemy.AttackBehavior attackBehavior;
 
     EnemyManager(List<GameState.Body> enemies, EventManager events, IntSupplier nextId,
                  ScoreManager scores, PickupManager pickups, EffectManager effects) {
@@ -27,6 +28,7 @@ public final class EnemyManager extends AbstractEntityManager<GameState.Body> {
         enemy.id = nextId.getAsInt(); enemy.entityId = enemy.id; enemy.kind = kind; enemy.owner = -1;
         enemy.configurationTag = kind == 4 ? "boss.body" : "enemy.body";
         enemy.bindCombat(combat);
+        enemy.bindAttackBehavior(attackBehavior);
         enemy.x = x; enemy.y = y; enemy.radius = radius;
         register(enemy);
         return enemy;
@@ -36,6 +38,10 @@ public final class EnemyManager extends AbstractEntityManager<GameState.Body> {
         if (isAcceptingSpawns() && entities.contains(enemy)) ((Enemy) enemy).die(creditedHeroId);
     }
     void bindCombat(CombatContext combat) { this.combat = combat; }
+    void bindAttackBehavior(Enemy.AttackBehavior behavior) {
+        attackBehavior = behavior;
+        for (GameState.Body enemy : entities) ((Enemy) enemy).bindAttackBehavior(behavior);
+    }
 
     void onEnemyDied(EnemyDeath death) {
         GameState.Body found = null;

@@ -36,11 +36,4 @@ public final class PickupManager extends AbstractEntityManager<GameState.Body> {
         return true;
     }
 
-    void update(float seconds) {
-        for (int i = entities.size() - 1; i >= 0; i--) {
-            GameState.Body pickup = entities.get(i);
-            pickup.age += seconds; pickup.y += pickup.vy * seconds;
-            if (pickup.y > 840) remove(pickup);
-        }
-    }
 }

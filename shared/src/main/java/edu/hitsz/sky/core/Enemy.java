@@ -6,9 +6,25 @@ public class Enemy extends Aircraft {
     private boolean dead;
     private float phaseProtectedUntil;
     private CombatContext combat;
+    private AttackBehavior attackBehavior;
 
     Enemy(EnemyManager manager) { super(CollisionType.ENEMY); this.manager = manager; }
     void bindCombat(CombatContext combat) { this.combat = combat; }
+    void bindAttackBehavior(AttackBehavior behavior) { attackBehavior = behavior; }
+    protected final CombatContext combat() { return combat; }
+    @Override protected float timeScale(GameObjectUpdateContext context) {
+        return context.frozen && kind != 4 ? kind == 3 ? .35f : 0 : 1;
+    }
+    @Override protected void move(GameObjectUpdateContext context, float seconds) {
+        y += vy * seconds;
+        if (kind == 2 || kind == 3) x += (float) Math.sin(age * 2.2f + id) * vx * seconds;
+        else if (kind == 7) x += (float) Math.cos(age * 1.3f) * vx * seconds;
+        x = WorldMath.clamp(x, 24, 456);
+    }
+    @Override protected void afterMove(GameObjectUpdateContext context, float movementSeconds) {
+        if (attackBehavior != null) attackBehavior.updateAttacks(this, movementSeconds);
+    }
+    @Override protected boolean isOutOfBounds() { return y > 850 || x < -95 || x > 575; }
     @Override public boolean isCollidable() { return active && !dead; }
     @Override public void onCollision(CollisionInfo other) {
         if (other.otherType == CollisionType.HERO) {
@@ -41,4 +57,6 @@ public class Enemy extends Aircraft {
     protected void notifyDeath(int creditedHeroId) {
         manager.onEnemyDied(new EnemyDeath(this, creditedHeroId));
     }
+
+    interface AttackBehavior { void updateAttacks(Enemy enemy, float seconds); }
 }

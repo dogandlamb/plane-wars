@@ -4,9 +4,36 @@ package edu.hitsz.sky.core;
 public final class Hero extends GameState.Pilot {
     private final BattleConfig config;
     private CombatContext combat;
+    private float targetX, targetY, frameX, frameY, frameSeconds;
 
     Hero(BattleConfig config) { this.config = config; configurationTag = "hero"; }
     void bindCombat(CombatContext combat) { this.combat = combat; }
+    void resetMovementTarget() { targetX = x; targetY = y; }
+    void setMovementTarget(float x, float y) {
+        targetX = WorldMath.clamp(x, 22, 458); targetY = WorldMath.clamp(y, 100, 770);
+    }
+    @Override protected float windScale() { return 1; }
+    @Override protected void move(GameObjectUpdateContext context, float seconds) {
+        if (downed) { vx = vy = 0; return; }
+        frameX = x; frameY = y; frameSeconds = seconds;
+        float dx = targetX - x, dy = targetY - y;
+        float length = (float) Math.sqrt(dx * dx + dy * dy);
+        float speed = Math.min(1, 470 * seconds / Math.max(.001f, length));
+        x += dx * speed; y += dy * speed;
+        applyWind(context, seconds);
+        x = WorldMath.clamp(x, 22, 458); y = WorldMath.clamp(y, 100, 770);
+        refreshVelocity();
+    }
+    float dash() {
+        float oldY = y;
+        y = Math.max(100, y - 180); targetY = y;
+        invulnerable = Math.max(invulnerable, 1.3f);
+        refreshVelocity();
+        return oldY;
+    }
+    private void refreshVelocity() {
+        if (frameSeconds > 0) { vx = (x - frameX) / frameSeconds; vy = (y - frameY) / frameSeconds; }
+    }
     @Override public boolean isCollidable() { return active && !downed && hp > 0; }
     @Override CollisionBody collisionBody() {
         return new CollisionBody(entityId, collisionType, configurationTag, id, x, y, vx, vy, 0,

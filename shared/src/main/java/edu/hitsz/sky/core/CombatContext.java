@@ -18,6 +18,7 @@ final class CombatContext {
         this.notices = notices; this.detonation = detonation;
     }
     boolean developer() { return state.developer; }
+    int stage() { return state.stage; }
     float damageScale() { return state.difficulty.damageScale; }
     float elapsed() { return state.elapsed; }
     boolean endless() { return state.mode == Mode.ENDLESS; }

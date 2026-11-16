@@ -42,6 +42,8 @@ tasks.register('verifyNetworkContracts', JavaExec) {
     }
 }
 tasks.named('check') {
+    dependsOn 'verifyGameObjects'
+    dependsOn 'verifyBulletMotion'
     dependsOn 'verifyCollisions'
     dependsOn 'verifyBattleLifecycle'
     dependsOn 'verifyMinuteCampaign'
@@ -53,6 +55,18 @@ tasks.register('verifyCollisions', JavaExec) {
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'edu.hitsz.sky.core.CollisionTest'
+}
+
+tasks.register('verifyBulletMotion', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'edu.hitsz.sky.core.BulletMotionTest'
+}
+
+tasks.register('verifyGameObjects', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'edu.hitsz.sky.core.GameObjectLifecycleTest'
 }
 tasks.register('verifyMinuteCampaign', JavaExec) {
     dependsOn testClasses
