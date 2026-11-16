@@ -96,10 +96,6 @@ final class FlightWeapons {
     }
 
     void shot(int owner, int kind, float x, float y, float vx, float vy, int damage, float radius) {
-        if (state.shots.size() >= FlightSimulation.MAX_SHOTS) return;
-        GameState.Body shot = world.body(kind, owner, x, y, radius);
-        shot.vx = vx; shot.vy = vy; shot.hp = damage; shot.maxHp = damage;
-        shot.angle = (float) Math.atan2(vy, vx);
-        state.shots.add(shot);
+        world.battle.bullets.spawn(owner, kind, x, y, vx, vy, damage, radius);
     }
 }

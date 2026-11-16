@@ -31,7 +31,7 @@ public final class GameState {
     /** Enemy kinds: scout, gunner, dart, ace, boss, shield, carrier, storm (0..7).
      * Pickup kinds: repair, spread, ring, bomb, freeze (0..4). Shot owner -1 means hostile.
      * Effect kinds: explosion, hit, pickup, shockwave, beam, dash (0..5). */
-    public static final class Body {
+    public static class Body {
         public int id, kind, owner, hp, maxHp, flags;
         public float x, y, vx, vy, radius, age, angle;
     }

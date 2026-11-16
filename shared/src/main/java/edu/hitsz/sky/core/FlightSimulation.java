@@ -3,24 +3,29 @@ package edu.hitsz.sky.core;
 import java.util.Random;
 
 final class FlightSimulation implements BattleEngine.Simulation {
-    static final int MAX_SHOTS = 512, MAX_ENEMIES = 24;
+    static final int MAX_SHOTS = BulletManager.MAX_BULLETS, MAX_ENEMIES = EnemyManager.MAX_ENEMIES;
     final GameState state;
     final StageCatalog.Stage stage;
     final Random random;
     final FlightWeapons weapons;
     final FlightDirector director;
+    final FlightBattle battle;
     private final float[] targetX = new float[2], targetY = new float[2], shotClock = new float[2];
     private final int[] pendingSkills = new int[2];
     private final boolean[] pendingBombs = new boolean[2];
-    private int nextId = 1, supplySequence, specialKills;
     private float noticeSeconds = 5, bossPhaseUntil;
 
-    FlightSimulation(GameState state, long seed) {
+    FlightSimulation(GameState state, long seed, FlightBattle battle) {
+        this.battle = battle;
         this.state = state; stage = StageCatalog.get(state.stage); random = new Random(seed);
         for (GameState.Pilot pilot : state.pilots) {
             targetX[pilot.id] = pilot.x; targetY[pilot.id] = pilot.y;
         }
         weapons = new FlightWeapons(this); director = new FlightDirector(this);
+        battle.events.subscribe(BattleEndedEvent.class, event -> {
+            java.util.Arrays.fill(pendingSkills, 0);
+            java.util.Arrays.fill(pendingBombs, false);
+        });
     }
 
     @Override public void accept(InputCommand command) {
@@ -45,8 +50,9 @@ final class FlightSimulation implements BattleEngine.Simulation {
         state.freezeSeconds = Math.max(0, state.freezeSeconds - seconds);
         noticeSeconds -= seconds;
         if (noticeSeconds <= 0) state.notice = director.bossPresent() ? "找到空隙，再靠近一点。" : stage.subtitle;
-        updateEffects(seconds);
+        battle.effects.update(seconds);
         updatePilots(seconds);
+        if (battle.outcome.campaignObjectiveReached()) { battle.outcome.evaluate(); return; }
         if (state.phase != Phase.RUNNING) return;
         director.step(seconds);
         for (GameState.Pilot pilot : state.pilots) {
@@ -60,6 +66,7 @@ final class FlightSimulation implements BattleEngine.Simulation {
         moveProjectiles(seconds);
         resolveCollisions();
         if (state.phase == Phase.RUNNING) rescuePilots(seconds);
+        battle.outcome.evaluate();
     }
 
     private void updatePilots(float seconds) {
@@ -117,23 +124,19 @@ final class FlightSimulation implements BattleEngine.Simulation {
             shot.x += shot.vx * seconds * factor;
             shot.y += shot.vy * seconds * factor;
             if (state.stage == 2) shot.x += windStep * factor;
-            if (shot.x < -40 || shot.x > 520 || shot.y < -70 || shot.y > 860 || shot.age > 14) state.shots.remove(i);
+            if (shot.x < -40 || shot.x > 520 || shot.y < -70 || shot.y > 860 || shot.age > 14) battle.bullets.remove(shot);
         }
-        for (int i = state.pickups.size() - 1; i >= 0; i--) {
-            GameState.Body pickup = state.pickups.get(i);
-            pickup.age += seconds; pickup.y += 58 * seconds;
-            if (pickup.y > 840) state.pickups.remove(i);
-        }
+        battle.pickups.update(seconds);
     }
 
     private void resolveCollisions() {
-        for (int i = state.shots.size() - 1; i >= 0 && state.phase == Phase.RUNNING; i--) {
+        for (int i = state.shots.size() - 1; i >= 0 && !battle.outcome.campaignObjectiveReached(); i--) {
             GameState.Body shot = state.shots.get(i);
             if (shot.owner >= 0) {
                 for (int j = state.enemies.size() - 1; j >= 0; j--) {
                     GameState.Body enemy = state.enemies.get(j);
                     if (!touch(shot, enemy.x, enemy.y, enemy.radius)) continue;
-                    state.shots.remove(i);
+                    battle.bullets.remove(shot);
                     if ((enemy.flags & 1) == 0 || Math.abs(shot.vx) > 65) damageEnemy(j, shot.hp, shot.owner);
                     else effect(1, -1, shot.x, shot.y, 12);
                     break;
@@ -141,11 +144,11 @@ final class FlightSimulation implements BattleEngine.Simulation {
             } else {
                 for (GameState.Pilot pilot : state.pilots) {
                     if (pilot.downed || !touch(shot, pilot.x, pilot.y, 12)) continue;
-                    state.shots.remove(i); damagePilot(pilot, shot.hp); break;
+                    battle.bullets.remove(shot); damagePilot(pilot, shot.hp); break;
                 }
             }
         }
-        for (int i = state.enemies.size() - 1; i >= 0 && state.phase == Phase.RUNNING; i--) {
+        for (int i = state.enemies.size() - 1; i >= 0 && !battle.outcome.campaignObjectiveReached(); i--) {
             GameState.Body enemy = state.enemies.get(i);
             for (GameState.Pilot pilot : state.pilots) {
                 if (pilot.downed || WorldMath.distance(enemy.x, enemy.y, pilot.x, pilot.y) > enemy.radius + 15) continue;
@@ -154,11 +157,12 @@ final class FlightSimulation implements BattleEngine.Simulation {
                 break;
             }
         }
-        for (int i = state.pickups.size() - 1; i >= 0 && state.phase == Phase.RUNNING; i--) {
+        for (int i = state.pickups.size() - 1; i >= 0 && !battle.outcome.campaignObjectiveReached(); i--) {
             GameState.Body pickup = state.pickups.get(i);
             for (GameState.Pilot pilot : state.pilots) {
                 if (!pilot.downed && touch(pickup, pilot.x, pilot.y, 18)) {
-                    state.pickups.remove(i); collect(pilot, pickup.kind); break;
+                    if (battle.pickups.collect(pickup, pilot.id)) collect(pilot, pickup.kind);
+                    break;
                 }
             }
         }
@@ -182,9 +186,6 @@ final class FlightSimulation implements BattleEngine.Simulation {
     }
 
     private void rescuePilots(float seconds) {
-        boolean everyoneDown = true;
-        for (GameState.Pilot pilot : state.pilots) if (!pilot.downed) everyoneDown = false;
-        if (everyoneDown) { state.phase = Phase.DEFEAT; return; }
         if (state.mode != Mode.COOP) return;
         for (GameState.Pilot pilot : state.pilots) {
             if (!pilot.downed) continue;
@@ -216,25 +217,11 @@ final class FlightSimulation implements BattleEngine.Simulation {
     }
 
     void destroyEnemy(int index, int owner) {
-        GameState.Body enemy = state.enemies.remove(index);
-        int[] rewards = {10, 20, 30, 40, 350, 35, 50, 45};
-        addScore(owner, enemy.kind == 4 ? rewards[4] + state.stage * 100 : rewards[enemy.kind]);
-        effect(0, owner, enemy.x, enemy.y, enemy.radius * 1.6f);
-        if (enemy.kind == 4) {
-            director.bossDefeated();
-            if (state.mode != Mode.ENDLESS) {
-                state.phase = Phase.VICTORY;
-                state.shots.clear();
-                notice(state.stage == 5 ? "航线恢复！大块头，跟我们回家。" : "航标找到了，下一站见！");
-            }
-        } else if (enemy.kind > 0 && ++specialKills % 2 == 0 && state.pickups.size() < 20) {
-            GameState.Body pickup = body(supplySequence++ % 5, 0, enemy.x, enemy.y, 16);
-            state.pickups.add(pickup);
-        }
+        battle.enemies.defeat(state.enemies.get(index), owner);
     }
 
     private void collect(GameState.Pilot pilot, int kind) {
-        addScore(pilot.id, 10); effect(2, pilot.id, pilot.x, pilot.y, 27);
+        effect(2, pilot.id, pilot.x, pilot.y, 27);
         switch (kind) {
             case 0: pilot.hp = Math.min(pilot.maxHp, pilot.hp + 35); notice("修好了，继续飞！"); break;
             case 1: pilot.weapon = 1; pilot.weaponSeconds = 5; notice("三路火力 · 5秒"); break;
@@ -247,32 +234,8 @@ final class FlightSimulation implements BattleEngine.Simulation {
         }
     }
 
-    void addScore(int owner, int amount) {
-        state.score += amount;
-        int id = Math.max(0, Math.min(state.pilots.size() - 1, owner));
-        state.pilots.get(id).score += amount;
-    }
-
-    GameState.Body body(int kind, int owner, float x, float y, float radius) {
-        GameState.Body body = new GameState.Body();
-        body.id = nextId++; body.kind = kind; body.owner = owner;
-        body.x = x; body.y = y; body.radius = radius;
-        return body;
-    }
-
     void effect(int kind, int owner, float x, float y, float radius) {
-        if (state.effects.size() >= 72) state.effects.remove(0);
-        state.effects.add(body(kind, owner, x, y, radius));
-    }
-
-    private void updateEffects(float seconds) {
-        for (int i = state.effects.size() - 1; i >= 0; i--) {
-            GameState.Body effect = state.effects.get(i);
-            effect.age += seconds;
-            float lifetime = effect.kind == 1 ? .22f : effect.kind == 5 ? .32f : .65f;
-            if (effect.kind == 4) lifetime = effect.owner < 0 ? 1.15f : .48f;
-            if (effect.age >= lifetime) state.effects.remove(i);
-        }
+        battle.effects.spawn(kind, owner, x, y, radius);
     }
 
     void notice(String text) { state.notice = text; noticeSeconds = 4; }

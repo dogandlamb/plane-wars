@@ -14,6 +14,8 @@ final class FlightDirector {
 
     FlightDirector(FlightSimulation world) {
         this.world = world; state = world.state;
+        world.battle.events.subscribe(BossDiedEvent.class, event -> bossDefeated());
+        world.battle.events.subscribe(BattleEndedEvent.class, event -> warnings.clear());
         nextBoss = state.mode == Mode.ENDLESS ? state.difficulty == Difficulty.EASY ? Float.POSITIVE_INFINITY : 65f : world.stage.duration - 15f;
     }
 
@@ -21,6 +23,7 @@ final class FlightDirector {
     float wind() { return (float) Math.sin(state.elapsed * .19f) * 38; }
 
     void step(float seconds) {
+        if (!world.battle.enemies.isAcceptingSpawns()) return;
         updateWarnings(seconds);
         if (!bossPresent && state.elapsed >= nextBoss) spawnBoss();
         if (!bossPresent) {
@@ -40,7 +43,7 @@ final class FlightDirector {
             enemy.age += step;
             if (enemy.kind == 4) updateBoss(enemy, step);
             else updateEnemy(enemy, step);
-            if (enemy.y > 850 || enemy.x < -95 || enemy.x > 575) state.enemies.remove(i);
+            if (enemy.y > 850 || enemy.x < -95 || enemy.x > 575) world.battle.enemies.remove(enemy);
         }
         if (state.stage == 2 && WorldMath.crossed(state.elapsed, seconds, 14)) world.notice(wind() < 0 ? "侧风向左，稳住机翼。" : "侧风向右，稳住机翼。");
         if (state.stage == 3 && !bossPresent && WorldMath.crossed(state.elapsed, seconds, 18)) {
@@ -64,15 +67,15 @@ final class FlightDirector {
     }
 
     private void spawnEnemy(int kind, float x, float y) {
-        if (state.enemies.size() >= FlightSimulation.MAX_ENEMIES) return;
+        if (!world.battle.enemies.isAcceptingSpawns() || state.enemies.size() >= FlightSimulation.MAX_ENEMIES) return;
         int[] health = {27, 48, 56, 110, 1, 98, 140, 85};
         float[] speeds = {83, 67, 114, 59, 0, 56, 45, 42};
-        GameState.Body enemy = world.body(kind, -1, x, y, kind == 6 ? 29 : kind == 3 ? 24 : 21);
+        GameState.Body enemy = world.battle.enemies.spawn(kind, x, y, kind == 6 ? 29 : kind == 3 ? 24 : 21);
+        if (enemy == null) return;
         enemy.hp = Math.max(1, Math.round((health[kind] + (state.stage - 1) * 4 + endlessHealthBonus()) * state.difficulty.healthScale));
         enemy.maxHp = enemy.hp;
         enemy.vy = speeds[kind] * (.9f + .1f * state.difficulty.paceScale) * endlessSpeed();
         enemy.vx = (world.random.nextBoolean() ? 1 : -1) * (kind == 2 ? 78 : kind == 3 ? 48 : 20);
-        state.enemies.add(enemy);
         if (!introduced[kind]) {
             introduced[kind] = true;
             switch (kind) {
@@ -121,15 +124,15 @@ final class FlightDirector {
     }
 
     private void spawnBoss() {
+        GameState.Body boss = world.battle.enemies.spawn(4, 240, -65, 51 + state.stage * 2);
+        if (boss == null) return;
         bossPresent = true;
         bossSpawns++;
-        GameState.Body boss = world.body(4, -1, 240, -65, 51 + state.stage * 2);
         float team = state.mode == Mode.COOP ? 1.65f : 1;
         int repeatBonus = state.mode == Mode.ENDLESS && state.difficulty == Difficulty.HARD ? (bossSpawns - 1) * 80 : 0;
         int health = state.mode == Mode.ENDLESS ? 650 + state.stage * 210 + repeatBonus : 360 + state.stage * 65;
         boss.hp = Math.round(health * state.difficulty.healthScale * team);
         boss.maxHp = boss.hp;
-        state.enemies.add(boss);
         world.notice(bossName() + "来了！先看清它的航线。");
     }
 
