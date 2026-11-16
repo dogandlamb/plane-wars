@@ -17,7 +17,8 @@ public final class BattleEngine implements AutoCloseable {
         state.developer = developer; state.phase = Phase.RUNNING;
         state.notice = StageCatalog.get(stage).subtitle;
         int count = mode == Mode.COOP ? 2 : 1;
-        HeroManager heroes = new HeroManager(state.pilots, stage == 6 ? null : events, count);
+        BattleConfig config = BattleConfig.loadDefault();
+        HeroManager heroes = new HeroManager(state.pilots, stage == 6 ? null : events, count, new EntityIds(), config);
         for (int i = 0; i < count; i++) {
             heroes.create(i, i == 0 ? "小夏" : "阿蓝", count == 1 ? 240 : 180 + i * 120, 680, developer);
         }
@@ -50,6 +51,15 @@ public final class BattleEngine implements AutoCloseable {
     /** Called synchronously on the simulation thread; Android callers must marshal to their UI thread. */
     public synchronized EventManager.Subscription onBattleEnded(java.util.function.Consumer<BattleEndedEvent> listener) {
         return events.subscribe(BattleEndedEvent.class, listener);
+    }
+
+    public synchronized void configureCollisionDebug(boolean enabled, int interval, int sampleLimit) {
+        if (flight != null) flight.collisions.configureDebug(enabled, interval, sampleLimit);
+    }
+
+    /** Optional simulation-thread geometry diagnostics, disabled by default. */
+    public synchronized EventManager.Subscription onCollisionDebug(java.util.function.Consumer<CollisionDebugFrameEvent> listener) {
+        return events.subscribe(CollisionDebugFrameEvent.class, listener);
     }
 
     @Override public synchronized void close() {

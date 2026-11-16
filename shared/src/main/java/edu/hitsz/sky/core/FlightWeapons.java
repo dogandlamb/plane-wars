@@ -11,12 +11,12 @@ final class FlightWeapons {
         if (pilot.weapon == 2) {
             for (int i = 0; i < 8; i++) {
                 double angle = -Math.PI / 2 + i * Math.PI / 4;
-                shot(pilot.id, 0, pilot.x, pilot.y - 18, (float) Math.cos(angle) * 440, (float) Math.sin(angle) * 440, 14, 5);
+                shot(pilot.id, 0, pilot.x, pilot.y - 18, (float) Math.cos(angle) * 440, (float) Math.sin(angle) * 440, "hero.ring", 5);
             }
         } else if (pilot.weapon == 1) {
-            for (int i = -1; i <= 1; i++) shot(pilot.id, 0, pilot.x + i * 9, pilot.y - 20, i * 105, -500, 15, 5);
+            for (int i = -1; i <= 1; i++) shot(pilot.id, 0, pilot.x + i * 9, pilot.y - 20, i * 105, -500, "hero.spread", 5);
         } else {
-            shot(pilot.id, 0, pilot.x, pilot.y - 22, 0, -520, 17, 5);
+            shot(pilot.id, 0, pilot.x, pilot.y - 22, 0, -520, "hero.basic", 5);
         }
     }
 
@@ -28,7 +28,7 @@ final class FlightWeapons {
                 world.effect(3, pilot.id, pilot.x, pilot.y, 245);
                 for (int i = state.shots.size() - 1; i >= 0; i--) {
                     GameState.Body shot = state.shots.get(i);
-                    if (shot.owner < 0 && WorldMath.distance(pilot.x, pilot.y, shot.x, shot.y) < 245) state.shots.remove(i);
+                    if (shot.owner < 0 && WorldMath.distance(pilot.x, pilot.y, shot.x, shot.y) < 245) world.battle.bullets.remove(shot);
                 }
                 for (int i = state.enemies.size() - 1; i >= 0; i--) {
                     GameState.Body enemy = state.enemies.get(i);
@@ -49,7 +49,7 @@ final class FlightWeapons {
                 }
                 for (int i = state.shots.size() - 1; i >= 0; i--) {
                     GameState.Body shot = state.shots.get(i);
-                    if (shot.owner < 0 && Math.abs(shot.x - pilot.x) < 65 && shot.y < pilot.y) state.shots.remove(i);
+                    if (shot.owner < 0 && Math.abs(shot.x - pilot.x) < 65 && shot.y < pilot.y) world.battle.bullets.remove(shot);
                 }
                 world.notice("光波开路！"); break;
             default: break;
@@ -63,7 +63,10 @@ final class FlightWeapons {
     }
 
     void detonate(GameState.Pilot pilot) {
-        state.shots.removeIf(shot -> shot.owner < 0);
+        for (int i = state.shots.size() - 1; i >= 0; i--) {
+            GameState.Body shot = state.shots.get(i);
+            if (shot.owner < 0) world.battle.bullets.remove(shot);
+        }
         for (int i = state.enemies.size() - 1; i >= 0; i--) {
             GameState.Body enemy = state.enemies.get(i);
             if (enemy.kind == 4) continue;
@@ -73,7 +76,7 @@ final class FlightWeapons {
         world.effect(3, pilot.id, 240, 400, 700);
     }
 
-    void aimed(GameState.Body enemy, int count, float speed, float spread, int damage) {
+    void aimed(GameState.Body enemy, int count, float speed, float spread, String tag) {
         GameState.Pilot target = null;
         float best = Float.MAX_VALUE;
         for (GameState.Pilot pilot : state.pilots) {
@@ -84,18 +87,18 @@ final class FlightWeapons {
         double center = Math.atan2(target.y - enemy.y, target.x - enemy.x);
         for (int i = 0; i < count; i++) {
             double angle = center + (i - (count - 1) / 2f) * spread;
-            shot(-1, 1, enemy.x, enemy.y + enemy.radius, (float) Math.cos(angle) * speed, (float) Math.sin(angle) * speed, damage, 6);
+            shot(-1, 1, enemy.x, enemy.y + enemy.radius, (float) Math.cos(angle) * speed, (float) Math.sin(angle) * speed, tag, 6);
         }
     }
 
-    void ring(GameState.Body enemy, int count, float speed, float angle, int damage) {
+    void ring(GameState.Body enemy, int count, float speed, float angle, String tag) {
         for (int i = 0; i < count; i++) {
             double direction = angle + i * Math.PI * 2 / count;
-            shot(-1, 1, enemy.x, enemy.y + 14, (float) Math.cos(direction) * speed, (float) Math.sin(direction) * speed, damage, 6);
+            shot(-1, 1, enemy.x, enemy.y + 14, (float) Math.cos(direction) * speed, (float) Math.sin(direction) * speed, tag, 6);
         }
     }
 
-    void shot(int owner, int kind, float x, float y, float vx, float vy, int damage, float radius) {
-        world.battle.bullets.spawn(owner, kind, x, y, vx, vy, damage, radius);
+    void shot(int owner, int kind, float x, float y, float vx, float vy, String tag, float radius) {
+        world.battle.bullets.spawn(owner, kind, x, y, vx, vy, tag, radius);
     }
 }

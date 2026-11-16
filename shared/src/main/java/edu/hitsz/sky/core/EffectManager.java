@@ -12,8 +12,8 @@ public final class EffectManager extends AbstractEntityManager<GameState.Body> {
     public void spawn(int kind, int owner, float x, float y, float radius) {
         if (!isAcceptingSpawns()) return;
         if (count() >= 72) remove(entities.get(0));
-        GameState.Body effect = new GameState.Body();
-        effect.id = nextId.getAsInt(); effect.kind = kind; effect.owner = owner;
+        GameState.Body effect = new Effect();
+        effect.id = nextId.getAsInt(); effect.entityId = effect.id; effect.kind = kind; effect.owner = owner;
         effect.x = x; effect.y = y; effect.radius = radius;
         register(effect);
     }

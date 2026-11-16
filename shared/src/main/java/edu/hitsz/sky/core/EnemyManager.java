@@ -12,6 +12,7 @@ public final class EnemyManager extends AbstractEntityManager<GameState.Body> {
     private final PickupManager pickups;
     private final EffectManager effects;
     private final EventManager.Subscription bossSubscription;
+    private CombatContext combat;
 
     EnemyManager(List<GameState.Body> enemies, EventManager events, IntSupplier nextId,
                  ScoreManager scores, PickupManager pickups, EffectManager effects) {
@@ -23,7 +24,9 @@ public final class EnemyManager extends AbstractEntityManager<GameState.Body> {
     Enemy spawn(int kind, float x, float y, float radius) {
         if (!isAcceptingSpawns() || count() >= MAX_ENEMIES) return null;
         Enemy enemy = kind == 4 ? new Boss(this, events) : new Enemy(this);
-        enemy.id = nextId.getAsInt(); enemy.kind = kind; enemy.owner = -1;
+        enemy.id = nextId.getAsInt(); enemy.entityId = enemy.id; enemy.kind = kind; enemy.owner = -1;
+        enemy.configurationTag = kind == 4 ? "boss.body" : "enemy.body";
+        enemy.bindCombat(combat);
         enemy.x = x; enemy.y = y; enemy.radius = radius;
         register(enemy);
         return enemy;
@@ -32,6 +35,7 @@ public final class EnemyManager extends AbstractEntityManager<GameState.Body> {
     void defeat(GameState.Body enemy, int creditedHeroId) {
         if (isAcceptingSpawns() && entities.contains(enemy)) ((Enemy) enemy).die(creditedHeroId);
     }
+    void bindCombat(CombatContext combat) { this.combat = combat; }
 
     void onEnemyDied(EnemyDeath death) {
         GameState.Body found = null;

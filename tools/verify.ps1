@@ -25,7 +25,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Test certificate export failed' }
     & $keytool -importcert -alias localhost -file $certificate -keystore $trust -storetype PKCS12 -storepass:env SKY_TEST_KEYSTORE_PASSWORD -noprompt
     if ($LASTEXITCODE -ne 0) { throw 'Test trust store creation failed' }
-    $classpath = @('shared/build/classes/java/main', 'shared/build/classes/java/test') -join [IO.Path]::PathSeparator
+    $classpath = @('shared/build/classes/java/main', 'shared/build/resources/main', 'shared/build/classes/java/test') -join [IO.Path]::PathSeparator
     & $java -cp $classpath edu.hitsz.sky.net.TlsRoomServerTest $key $trust
     if ($LASTEXITCODE -ne 0) { throw 'TLS verification failed' }
 } finally {

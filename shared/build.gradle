@@ -42,10 +42,17 @@ tasks.register('verifyNetworkContracts', JavaExec) {
     }
 }
 tasks.named('check') {
+    dependsOn 'verifyCollisions'
     dependsOn 'verifyBattleLifecycle'
     dependsOn 'verifyMinuteCampaign'
     dependsOn verifyCore, verifyCodec, verifyRooms, verifyNetworkContracts,
         'verifyRoomLifecycle', 'verifyProtocolExtensions', 'verifyRoomContinuation', 'verifyRoomWaitingPause', 'verifyRoomDeadlines'
+}
+
+tasks.register('verifyCollisions', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'edu.hitsz.sky.core.CollisionTest'
 }
 tasks.register('verifyMinuteCampaign', JavaExec) {
     dependsOn testClasses

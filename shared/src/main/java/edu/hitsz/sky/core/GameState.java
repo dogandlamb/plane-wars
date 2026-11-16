@@ -21,19 +21,21 @@ public final class GameState {
     public final List<Body> effects = new ArrayList<>();
     public Night night;
 
-    public static final class Pilot {
-        public int id, hp, maxHp, score, weapon, bombs;
+    public static class Pilot extends Aircraft {
+        /** id remains the player/score identity for existing input, rendering and wire consumers. */
+        public int score, weapon, bombs;
         public String name = "";
-        public float x, y, invulnerable, weaponSeconds, reviveProgress, charge;
+        public float invulnerable, weaponSeconds, reviveProgress, charge;
         public boolean downed;
         public final float[] cooldowns = new float[4];
+        public Pilot() { super(CollisionType.HERO); }
+        @Override public void onCollision(CollisionInfo collision) { /* Detached frame value; live heroes override. */ }
     }
     /** Enemy kinds: scout, gunner, dart, ace, boss, shield, carrier, storm (0..7).
      * Pickup kinds: repair, spread, ring, bomb, freeze (0..4). Shot owner -1 means hostile.
      * Effect kinds: explosion, hit, pickup, shockwave, beam, dash (0..5). */
-    public static class Body {
+    public static class Body extends GameObject {
         public int id, kind, owner, hp, maxHp, flags;
-        public float x, y, vx, vy, radius, age, angle;
     }
     public static final class Night {
         public float energy = 100f, elapsed;

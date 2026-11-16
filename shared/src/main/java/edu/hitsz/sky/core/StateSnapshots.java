@@ -11,8 +11,10 @@ final class StateSnapshots {
         for (GameState.Pilot original : source.pilots) {
             GameState.Pilot pilot = new GameState.Pilot();
             pilot.id = original.id; pilot.hp = original.hp; pilot.maxHp = original.maxHp;
+            pilot.entityId = original.entityId; pilot.active = original.active;
             pilot.score = original.score; pilot.weapon = original.weapon; pilot.bombs = original.bombs;
             pilot.name = original.name; pilot.x = original.x; pilot.y = original.y;
+            pilot.vx = original.vx; pilot.vy = original.vy;
             pilot.invulnerable = original.invulnerable; pilot.weaponSeconds = original.weaponSeconds;
             pilot.reviveProgress = original.reviveProgress; pilot.charge = original.charge;
             pilot.downed = original.downed;
@@ -40,6 +42,7 @@ final class StateSnapshots {
     private static GameState.Body copyBody(GameState.Body original) {
         GameState.Body body = new GameState.Body();
         body.id = original.id; body.kind = original.kind; body.owner = original.owner;
+        body.entityId = original.entityId; body.active = original.active;
         body.hp = original.hp; body.maxHp = original.maxHp; body.flags = original.flags;
         body.x = original.x; body.y = original.y; body.vx = original.vx; body.vy = original.vy;
         body.radius = original.radius; body.age = original.age; body.angle = original.angle;

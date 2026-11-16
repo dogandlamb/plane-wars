@@ -1,6 +1,8 @@
 package edu.hitsz.sky.core;
 
 import java.util.Random;
+import java.util.Map;
+import java.util.Set;
 
 final class FlightSimulation implements BattleEngine.Simulation {
     static final int MAX_SHOTS = BulletManager.MAX_BULLETS, MAX_ENEMIES = EnemyManager.MAX_ENEMIES;
@@ -13,7 +15,7 @@ final class FlightSimulation implements BattleEngine.Simulation {
     private final float[] targetX = new float[2], targetY = new float[2], shotClock = new float[2];
     private final int[] pendingSkills = new int[2];
     private final boolean[] pendingBombs = new boolean[2];
-    private float noticeSeconds = 5, bossPhaseUntil;
+    private float noticeSeconds = 5;
 
     FlightSimulation(GameState state, long seed, FlightBattle battle) {
         this.battle = battle;
@@ -22,6 +24,7 @@ final class FlightSimulation implements BattleEngine.Simulation {
             targetX[pilot.id] = pilot.x; targetY[pilot.id] = pilot.y;
         }
         weapons = new FlightWeapons(this); director = new FlightDirector(this);
+        battle.combat.bind(this::notice, weapons::detonate);
         battle.events.subscribe(BattleEndedEvent.class, event -> {
             java.util.Arrays.fill(pendingSkills, 0);
             java.util.Arrays.fill(pendingBombs, false);
@@ -71,6 +74,7 @@ final class FlightSimulation implements BattleEngine.Simulation {
 
     private void updatePilots(float seconds) {
         for (GameState.Pilot pilot : state.pilots) {
+            float previousX = pilot.x, previousY = pilot.y;
             if (state.developer) {
                 pilot.hp = pilot.maxHp; pilot.downed = false;
                 pilot.bombs = 99; pilot.invulnerable = 1;
@@ -82,7 +86,7 @@ final class FlightSimulation implements BattleEngine.Simulation {
             }
             pilot.weaponSeconds = Math.max(0, pilot.weaponSeconds - seconds);
             if (pilot.weaponSeconds == 0) pilot.weapon = 0;
-            if (pilot.downed) { pendingSkills[pilot.id] = 0; pendingBombs[pilot.id] = false; continue; }
+            if (pilot.downed) { pilot.vx = pilot.vy = 0; pendingSkills[pilot.id] = 0; pendingBombs[pilot.id] = false; continue; }
             float dx = targetX[pilot.id] - pilot.x, dy = targetY[pilot.id] - pilot.y;
             float length = (float) Math.sqrt(dx * dx + dy * dy);
             float speed = Math.min(1, 470 * seconds / Math.max(.001f, length));
@@ -98,6 +102,7 @@ final class FlightSimulation implements BattleEngine.Simulation {
             float shortest = pilot.cooldowns[0];
             for (int slot = 1; slot < 4; slot++) shortest = Math.min(shortest, pilot.cooldowns[slot]);
             pilot.charge = 1 - Math.min(1, shortest / 6f);
+            pilot.vx = (pilot.x - previousX) / seconds; pilot.vy = (pilot.y - previousY) / seconds;
         }
     }
 
@@ -130,58 +135,13 @@ final class FlightSimulation implements BattleEngine.Simulation {
     }
 
     private void resolveCollisions() {
-        for (int i = state.shots.size() - 1; i >= 0 && !battle.outcome.campaignObjectiveReached(); i--) {
-            GameState.Body shot = state.shots.get(i);
-            if (shot.owner >= 0) {
-                for (int j = state.enemies.size() - 1; j >= 0; j--) {
-                    GameState.Body enemy = state.enemies.get(j);
-                    if (!touch(shot, enemy.x, enemy.y, enemy.radius)) continue;
-                    battle.bullets.remove(shot);
-                    if ((enemy.flags & 1) == 0 || Math.abs(shot.vx) > 65) damageEnemy(j, shot.hp, shot.owner);
-                    else effect(1, -1, shot.x, shot.y, 12);
-                    break;
-                }
-            } else {
-                for (GameState.Pilot pilot : state.pilots) {
-                    if (pilot.downed || !touch(shot, pilot.x, pilot.y, 12)) continue;
-                    battle.bullets.remove(shot); damagePilot(pilot, shot.hp); break;
-                }
-            }
-        }
-        for (int i = state.enemies.size() - 1; i >= 0 && !battle.outcome.campaignObjectiveReached(); i--) {
-            GameState.Body enemy = state.enemies.get(i);
-            for (GameState.Pilot pilot : state.pilots) {
-                if (pilot.downed || WorldMath.distance(enemy.x, enemy.y, pilot.x, pilot.y) > enemy.radius + 15) continue;
-                damagePilot(pilot, enemy.kind == 4 ? 35 : 28);
-                if (enemy.kind != 4) destroyEnemy(i, pilot.id);
-                break;
-            }
-        }
-        for (int i = state.pickups.size() - 1; i >= 0 && !battle.outcome.campaignObjectiveReached(); i--) {
-            GameState.Body pickup = state.pickups.get(i);
-            for (GameState.Pilot pilot : state.pilots) {
-                if (!pilot.downed && touch(pickup, pilot.x, pilot.y, 18)) {
-                    if (battle.pickups.collect(pickup, pilot.id)) collect(pilot, pickup.kind);
-                    break;
-                }
-            }
-        }
-    }
-
-    private static boolean touch(GameState.Body body, float x, float y, float radius) {
-        float dx = body.x - x, dy = body.y - y, sum = body.radius + radius;
-        return dx * dx + dy * dy <= sum * sum;
-    }
-
-    private void damagePilot(GameState.Pilot pilot, int amount) {
-        if (pilot.invulnerable > 0 || state.developer) return;
-        pilot.hp = Math.max(0, pilot.hp - Math.max(1, Math.round(amount * state.difficulty.damageScale)));
-        pilot.invulnerable = 1.1f;
-        effect(1, pilot.id, pilot.x, pilot.y, 18);
-        if (pilot.hp == 0) {
-            pilot.downed = true; pilot.invulnerable = 0;
-            effect(0, pilot.id, pilot.x, pilot.y, 34);
-            notice(state.mode == Mode.COOP ? "队友需要帮助，靠近停留就能救援。" : "飞机需要修一修。再来一次吧！");
+        Map<Integer, Set<CollisionInfo>> contacts = battle.collisions.detect(
+                battle.heroes, battle.enemies, battle.bullets, battle.pickups);
+        battle.collisionDispatcher.dispatch(contacts, battle.outcome::campaignObjectiveReached);
+        CollisionDebugFrameEvent debug = battle.collisions.debugFrame(state.tick, contacts);
+        if (debug != null) {
+            // Diagnostics cannot interrupt battle settlement or make observers part of the rules.
+            try { battle.events.publish(debug); } catch (RuntimeException ignored) { }
         }
     }
 
@@ -202,36 +162,12 @@ final class FlightSimulation implements BattleEngine.Simulation {
     }
 
     void damageEnemy(int index, int amount, int owner) {
-        if (index < 0 || index >= state.enemies.size()) return;
-        GameState.Body enemy = state.enemies.get(index);
-        enemy.hp -= amount;
-        if (enemy.kind == 4 && enemy.hp <= enemy.maxHp / 2 && (enemy.flags & 2) == 0) {
-            enemy.flags |= 2; notice("它换了个飞法！留心下一轮。");
-            effect(3, -1, enemy.x, enemy.y, 90);
-            if (state.mode != Mode.ENDLESS) bossPhaseUntil = state.elapsed + 3;
-        }
-        // A short campaign still gives the second attack pattern time to appear.
-        if (enemy.kind == 4 && state.mode != Mode.ENDLESS && state.elapsed < bossPhaseUntil)
-            enemy.hp = Math.max(1, enemy.hp);
-        if (enemy.hp <= 0) destroyEnemy(index, owner);
+        if (index >= 0 && index < state.enemies.size())
+            ((Enemy) state.enemies.get(index)).receiveDamage(amount, owner);
     }
 
     void destroyEnemy(int index, int owner) {
         battle.enemies.defeat(state.enemies.get(index), owner);
-    }
-
-    private void collect(GameState.Pilot pilot, int kind) {
-        effect(2, pilot.id, pilot.x, pilot.y, 27);
-        switch (kind) {
-            case 0: pilot.hp = Math.min(pilot.maxHp, pilot.hp + 35); notice("修好了，继续飞！"); break;
-            case 1: pilot.weapon = 1; pilot.weaponSeconds = 5; notice("三路火力 · 5秒"); break;
-            case 2: pilot.weapon = 2; pilot.weaponSeconds = 5; notice("环形火力 · 5秒"); break;
-            case 3:
-                pilot.bombs = Math.min(5, pilot.bombs + 1);
-                weapons.detonate(pilot); notice("炸弹清屏！头目和王牌更结实些。"); break;
-            case 4: state.freezeSeconds = 5; notice("冻结 · 5秒（头目免疫，王牌减速）"); break;
-            default: break;
-        }
     }
 
     void effect(int kind, int owner, float x, float y, float radius) {

@@ -55,7 +55,8 @@ tasks.register('compileAdapterChecks', JavaCompile) {
 ['verifyLocalSession': 'LocalSessionTest', 'verifySnapshotMotion': 'SnapshotMotionTest'].each { taskName, entry ->
     tasks.register(taskName, JavaExec) {
         dependsOn 'compileAdapterChecks'
-        classpath = files(adapterClasses, project(':shared').layout.buildDirectory.dir('classes/java/main'))
+        classpath = files(adapterClasses, project(':shared').layout.buildDirectory.dir('classes/java/main'),
+            project(':shared').layout.buildDirectory.dir('resources/main'))
         mainClass = 'edu.hitsz.sky.android.' + entry
     }
 }

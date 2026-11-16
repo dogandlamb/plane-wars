@@ -47,7 +47,7 @@ final class FlightDirector {
         }
         if (state.stage == 2 && WorldMath.crossed(state.elapsed, seconds, 14)) world.notice(wind() < 0 ? "侧风向左，稳住机翼。" : "侧风向右，稳住机翼。");
         if (state.stage == 3 && !bossPresent && WorldMath.crossed(state.elapsed, seconds, 18)) {
-            warn(65 + world.random.nextFloat() * 350, 23);
+            warn(65 + world.random.nextFloat() * 350, "hostile.23");
         }
     }
 
@@ -97,27 +97,27 @@ final class FlightDirector {
         float pace = state.difficulty.paceScale;
         switch (enemy.kind) {
             case 1:
-                if (WorldMath.crossed(enemy.age, seconds, 1.8f / pace)) world.weapons.aimed(enemy, 1, 142 * pace, 0, 10);
+                if (WorldMath.crossed(enemy.age, seconds, 1.8f / pace)) world.weapons.aimed(enemy, 1, 142 * pace, 0, "hostile.10");
                 break;
             case 2:
-                if (WorldMath.crossed(enemy.age, seconds, 2.1f / pace)) world.weapons.aimed(enemy, 2, 158 * pace, .22f, 9);
+                if (WorldMath.crossed(enemy.age, seconds, 2.1f / pace)) world.weapons.aimed(enemy, 2, 158 * pace, .22f, "hostile.9");
                 break;
             case 3:
-                if (WorldMath.crossed(enemy.age, seconds, 1.9f / pace)) world.weapons.aimed(enemy, 3, 148 * pace, .23f, 11);
+                if (WorldMath.crossed(enemy.age, seconds, 1.9f / pace)) world.weapons.aimed(enemy, 3, 148 * pace, .23f, "hostile.11");
                 break;
             case 5:
                 enemy.flags = (int) (enemy.age / 1.8f) % 2 == 0 ? 1 : 0;
-                if (WorldMath.crossed(enemy.age, seconds, 2.4f / pace)) world.weapons.aimed(enemy, 3, 140 * pace, .28f, 10);
+                if (WorldMath.crossed(enemy.age, seconds, 2.4f / pace)) world.weapons.aimed(enemy, 3, 140 * pace, .28f, "hostile.10");
                 break;
             case 6:
                 if (enemy.y < 380 && WorldMath.crossed(enemy.age, seconds, 4.5f)) {
                     spawnEnemy(0, WorldMath.clamp(enemy.x - 36, 25, 455), enemy.y + 12);
                     spawnEnemy(0, WorldMath.clamp(enemy.x + 36, 25, 455), enemy.y + 12);
                 }
-                if (WorldMath.crossed(enemy.age, seconds, 2.2f / pace)) world.weapons.aimed(enemy, 3, 135 * pace, .35f, 11);
+                if (WorldMath.crossed(enemy.age, seconds, 2.2f / pace)) world.weapons.aimed(enemy, 3, 135 * pace, .35f, "hostile.11");
                 break;
             case 7:
-                if (WorldMath.crossed(enemy.age, seconds, 4.5f / pace)) warn(enemy.x, 20);
+                if (WorldMath.crossed(enemy.age, seconds, 4.5f / pace)) warn(enemy.x, "hostile.20");
                 break;
             default: break;
         }
@@ -155,31 +155,31 @@ final class FlightDirector {
         float period = Math.max(.7f, 1.7f - state.stage * .09f) / pace;
         if (WorldMath.crossed(boss.age, seconds, period)) {
             switch (state.stage) {
-                case 1: world.weapons.aimed(boss, second ? 5 : 3, 148 * pace, .22f, 12); break;
+                case 1: world.weapons.aimed(boss, second ? 5 : 3, 148 * pace, .22f, "hostile.12"); break;
                 case 2:
-                    world.weapons.aimed(boss, 3, 155 * pace, .28f, 12);
-                    world.weapons.shot(-1, 1, boss.x - 44, boss.y + 25, -85, 195 * pace, 11, 7);
-                    world.weapons.shot(-1, 1, boss.x + 44, boss.y + 25, 85, 195 * pace, 11, 7);
+                    world.weapons.aimed(boss, 3, 155 * pace, .28f, "hostile.12");
+                    world.weapons.shot(-1, 1, boss.x - 44, boss.y + 25, -85, 195 * pace, "hostile.11", 7);
+                    world.weapons.shot(-1, 1, boss.x + 44, boss.y + 25, 85, 195 * pace, "hostile.11", 7);
                     break;
-                case 3: world.weapons.ring(boss, second ? 16 : 10, 137 * pace, boss.age * .32f, 12); break;
-                case 4: world.weapons.aimed(boss, second ? 7 : 5, 148 * pace, .19f, 13); break;
+                case 3: world.weapons.ring(boss, second ? 16 : 10, 137 * pace, boss.age * .32f, "hostile.12"); break;
+                case 4: world.weapons.aimed(boss, second ? 7 : 5, 148 * pace, .19f, "hostile.13"); break;
                 default:
-                    if (second) world.weapons.ring(boss, 18, 148 * pace, boss.age * .42f, 13);
-                    else world.weapons.aimed(boss, 5, 164 * pace, .25f, 13);
+                    if (second) world.weapons.ring(boss, 18, 148 * pace, boss.age * .42f, "hostile.13");
+                    else world.weapons.aimed(boss, 5, 164 * pace, .25f, "hostile.13");
                     break;
             }
         }
-        if (state.stage == 1 && second && WorldMath.crossed(boss.age, seconds, 4.1f)) world.weapons.ring(boss, 10, 120, boss.age, 10);
-        if (state.stage == 3 && WorldMath.crossed(boss.age, seconds, second ? 2.8f : 4.3f)) warn(targetX(), 25);
+        if (state.stage == 1 && second && WorldMath.crossed(boss.age, seconds, 4.1f)) world.weapons.ring(boss, 10, 120, boss.age, "hostile.10");
+        if (state.stage == 3 && WorldMath.crossed(boss.age, seconds, second ? 2.8f : 4.3f)) warn(targetX(), "hostile.25");
         if (state.stage == 4) {
             boss.flags = second ? boss.flags & ~1 : (int) (boss.age / 2.3f) % 2 == 0 ? boss.flags | 1 : boss.flags & ~1;
             if (WorldMath.crossed(boss.age, seconds, second ? 2.3f : 4f)) {
-                warn(targetX(), 26);
-                if (second) warn(WorldMath.clamp(targetX() + 95, 28, 452), 22);
+                warn(targetX(), "hostile.26");
+                if (second) warn(WorldMath.clamp(targetX() + 95, 28, 452), "hostile.22");
             }
         }
         if (state.stage == 5 && WorldMath.crossed(boss.age, seconds, second ? 3.8f : 5.5f)) {
-            if (second) warn(targetX(), 24);
+            if (second) warn(targetX(), "hostile.24");
             else spawnEnemy(2, world.random.nextBoolean() ? 50 : 430, 100);
         }
     }
@@ -189,9 +189,9 @@ final class FlightDirector {
         return 240;
     }
 
-    private void warn(float x, int damage) {
+    private void warn(float x, String tag) {
         if (warnings.size() >= 5) return;
-        Thunder thunder = new Thunder(); thunder.x = x; thunder.damage = damage;
+        Thunder thunder = new Thunder(); thunder.x = x; thunder.tag = tag;
         warnings.add(thunder); world.effect(4, -1, x, 25, 25);
     }
 
@@ -200,7 +200,7 @@ final class FlightDirector {
             Thunder warning = warnings.get(i);
             warning.delay -= seconds;
             if (warning.delay <= 0) {
-                world.weapons.shot(-1, 2, warning.x, -25, 0, 540, warning.damage, 23);
+                world.weapons.shot(-1, 2, warning.x, -25, 0, 540, warning.tag, 23);
                 warnings.remove(i);
             }
         }
@@ -227,6 +227,6 @@ final class FlightDirector {
 
     private static final class Thunder {
         float x, delay = 1.05f;
-        int damage;
+        String tag;
     }
 }
